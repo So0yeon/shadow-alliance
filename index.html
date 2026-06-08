@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>그림자 연합 · SHADOW ALLIANCE</title>
+<title>그림자 연합 · SHADOW UNION</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Nanum+Myeongjo:wght@400;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -227,7 +227,7 @@ input[type=number]{-moz-appearance:textfield}
 
 <script>
 /* ============================================================
-   그림자 연합 · SHADOW alliance  —  온라인 버전 (Supabase Realtime)
+   그림자 연합 · SHADOW UNION  —  온라인 버전 (Supabase Realtime)
    구조
      LOGIC : 순수 게임 로직 (단위검증 완료)
      STORE : 인메모리 상태(교사가 권한 보유) + 변경 알림
@@ -318,7 +318,7 @@ const randCommand = () => 30 + Math.floor(Math.random()*41); // 30~70
      emit() 대신 Realtime 구독으로 화면을 갱신하면 됩니다.
    ============================================================ */
 const Store = (() => {
-  let state, listeners = [];
+  let state, listeners = [], lastSnapStr = null;
   function fresh(){
     return {
       phase:'lobby',          // lobby | playing | revealing | postround | final
@@ -334,7 +334,11 @@ const Store = (() => {
   }
   state = fresh();
 
-  function emit(){ listeners.forEach(f=>f(state)); Net.broadcast(snapshot()); }
+  function emit(){
+    listeners.forEach(f=>f(state));
+    const snap = snapshot(), str = JSON.stringify(snap);
+    if (str !== lastSnapStr){ lastSnapStr = str; Net.broadcast(snap); }
+  }
   function snapshot(){
     return {
       phase:state.phase, round:state.round, totalRounds:state.totalRounds,
@@ -475,7 +479,7 @@ const Net = (() => {
       return new Promise((resolve)=>{
         if (!sb) return resolve(false);
         role = r; room = roomCode; subscribed = false;
-        ch = sb.channel('shadow-alliance-'+roomCode, { config:{ broadcast:{ self:false } } });
+        ch = sb.channel('shadow-union-'+roomCode, { config:{ broadcast:{ self:false } } });
 
         ch.on('broadcast', { event:'join' },     ({payload}) => { if(role==='host' && onJoin) onJoin(payload); });
         ch.on('broadcast', { event:'submit' },   ({payload}) => { if(role==='host' && onSubmit) onSubmit(payload); });
@@ -579,7 +583,7 @@ function renderLanding(){
   app.innerHTML='';
   const el = h(`<div class="landing fade">
     <div class="sigil">${sigilSVG}</div>
-    <div class="title-main">SHADOW alliance</div>
+    <div class="title-main">SHADOW UNION</div>
     <div class="title-sub">그 림 자 연 합</div>
     <div class="role-grid">
       <div class="card role" id="r-host">
@@ -605,7 +609,7 @@ function renderRules(){
   app.innerHTML='';
   const el = h(`<div class="wrap fade">
     <div class="topbar">
-      <div class="left"><span class="brand">⟡ SHADOW alliance</span></div>
+      <div class="left"><span class="brand">⟡ SHADOW UNION</span></div>
       <button class="btn ghost sm" id="back">처음으로</button>
     </div>
     <div class="center" style="margin:6px 0 34px">
@@ -671,7 +675,7 @@ function renderConnect(role){
   const prefRoom = pendingRoom || '';
 
   const el = h(`<div class="wrap fade" style="max-width:560px">
-    <div class="topbar"><div class="left"><span class="brand">⟡ SHADOW alliance</span></div>
+    <div class="topbar"><div class="left"><span class="brand">⟡ SHADOW UNION</span></div>
       <button class="btn ghost sm" id="back">처음으로</button></div>
     <div class="center" style="margin:6px 0 26px">
       <div class="eyebrow">${role==='host'?'본부 개설':'공작원 접속'}</div>
@@ -731,7 +735,7 @@ function renderConnect(role){
 
     stat.textContent='연결 중…';
     if(!Net.configure(url,key)){ stat.textContent='연결 실패: 라이브러리 로드 오류.'; return; }
-    const ok = await Net.openRoom(room, role);
+    const ok = await Net.openRoom(room, role==='host'?'host':'client');
     if(!ok){ stat.textContent='방 연결에 실패했습니다. URL/Key를 확인하세요.'; return; }
     if(needCfg) Conn.saveCfg(url,key);
     Audio_.coin();
@@ -777,11 +781,13 @@ function hostSig(s){
 function drawHost(){
   const s = Store.get();
   const sig = hostSig(s);
-  // 타이머만 줄어든 경우: 전체를 다시 그리지 않고 타이머 요소만 갱신 (깜빡임 방지)
-  if (sig===lastHostSig && s.phase==='playing'){
-    const tt=$('#timer-text'), tf=$('#timer-fill');
-    if(tt){ tt.textContent=fmtTime(s.timeLeft); tt.classList.toggle('warn', s.timeLeft<=30); }
-    if(tf){ tf.style.width=(s.timeLeft/s.timerSec*100)+'%'; }
+  // 동일 상태면 다시 그리지 않음. 협상 중엔 타이머 요소만 갱신 (깜빡임 방지).
+  if (sig===lastHostSig){
+    if (s.phase==='playing'){
+      const tt=$('#timer-text'), tf=$('#timer-fill');
+      if(tt){ tt.textContent=fmtTime(s.timeLeft); tt.classList.toggle('warn', s.timeLeft<=30); }
+      if(tf){ tf.style.width=(s.timeLeft/s.timerSec*100)+'%'; }
+    }
     return;
   }
   lastHostSig = sig;
@@ -803,7 +809,7 @@ function drawHost(){
 function hostTopbar(s){
   const t = h(`<div class="topbar">
     <div class="left">
-      <span class="brand">⟡ SHADOW alliance</span>
+      <span class="brand">⟡ SHADOW UNION</span>
       ${s.phase!=='lobby' && s.phase!=='final' ? `<span class="round-pill">ROUND ${s.round} / ${s.totalRounds}</span>`:''}
     </div>
     <div class="row">
@@ -1219,9 +1225,9 @@ function stuSig(snap, me){
 function drawStudent(snap){
   const meNow = myId ? findMe(snap) : null;
   const sig = stuSig(snap, meNow);
-  // 협상 중 타이머만 줄어든 경우: 부분 갱신만 (깜빡임 방지)
-  if (sig===lastStuSig && snap.phase==='playing'){
-    const st=$('#s-timer'); if(st) st.textContent='남은 협상 시간 · '+fmtTime(snap.timeLeft);
+  // 동일 상태면 다시 그리지 않음 (반복 수신 시 깜빡임 방지). 협상 중엔 타이머만 갱신.
+  if (sig===lastStuSig){
+    if (snap.phase==='playing'){ const st=$('#s-timer'); if(st) st.textContent='남은 협상 시간 · '+fmtTime(snap.timeLeft); }
     return;
   }
   lastStuSig = sig;
