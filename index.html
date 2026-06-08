@@ -641,7 +641,7 @@ const RULES = [
       <p><b>큰 숫자를 낼수록 더 많이</b> 가져간다. 하지만 모두가 욕심내 큰 숫자만 내면 팀 평균이 지령에서 멀어져 <b>아예 져 버린다!</b></p>
     </div>` },
   { no:'06', cls:'', title:'최후의 공작원',
-    body:`<p>총 5라운드. 누적 세력이 가장 많은 공작원이 최종 승리한다. 게임이 끝나면 모든 이의 진영이 공개된다. — <b>"헐, 너 우리 팀이었어?"</b></p>` },
+    body:`<p>총 5라운드. 누적 세력이 가장 많은 공작원이 최종 승리한다. 게임이 끝나면 모든 이의 진영이 공개된다. — <b>"와, 너 우리 팀이었어?"</b></p>` },
 ];
 let rulesStep = 0;
 function renderRules(){
@@ -1239,7 +1239,7 @@ function hostFinal(s){
     box.classList.remove('hidden'); box.classList.add('fade');
     box.innerHTML = `<div class="hr"></div>
       <div class="center"><div class="eyebrow">진영 공개</div>
-      <p class="notice" style="margin-top:6px">"헐, 너 우리 팀이었어?"</p></div>
+      <p class="notice" style="margin-top:6px">"와, 너 우리 팀이었어?"</p></div>
       <div class="team-reveal">
         <div class="card team-col bk"><h3>⚫ 블랙 연합</h3><div id="bk"></div></div>
         <div class="card team-col wt"><h3>⚪ 화이트 연합</h3><div id="wt"></div></div>
