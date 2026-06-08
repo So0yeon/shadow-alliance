@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>그림자 연합 · SHADOW UNION</title>
+<title>그림자 연합 · SHADOW alliance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Nanum+Myeongjo:wght@400;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -214,6 +214,33 @@ input[type=number]{-moz-appearance:textfield}
 .qr-wrap #qrbox{padding:12px;background:var(--white);border-radius:12px;display:inline-block;line-height:0}
 .qr-wrap img,.qr-wrap canvas{display:block}
 .join-url{font-family:var(--mono);font-size:13px;color:var(--gold);word-break:break-all;margin-top:12px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;display:inline-block}
+/* 표지 버튼 */
+.cover-btn{margin-top:36px;font-size:clamp(17px,3.5vw,21px);padding:18px 56px;letter-spacing:.14em;border-radius:12px}
+/* 규칙 한 장씩 */
+.rules-progress{display:flex;gap:7px;justify-content:center;margin-top:16px}
+.rules-progress span{width:26px;height:4px;border-radius:99px;background:var(--line);transition:.3s}
+.rules-progress span.on{background:linear-gradient(90deg,var(--gold),var(--gold-bright))}
+.ruleslide{animation:slidein .45s cubic-bezier(.2,.9,.3,1) both}
+@keyframes slidein{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+.kid{margin-top:16px;padding:16px 18px;border-radius:10px;background:rgba(201,162,75,.07);border:1px solid var(--gold-dim)}
+.kid p{font-size:clamp(15px,2.3vw,18px);line-height:1.85;color:var(--white)}
+.kid p+p{margin-top:8px}
+/* 결과 로딩 문구 */
+.reveal-loading{min-height:30px;display:flex;flex-direction:column;align-items:center;gap:8px;transition:opacity .4s}
+.reveal-loading.rl-fade{opacity:0}
+.rl-line{font-family:var(--mono);font-size:clamp(14px,2.6vw,18px);letter-spacing:.06em;color:var(--gold);animation:fade .4s both}
+/* 우승 연합 */
+.alliance-win{font-family:var(--display);font-weight:900;font-size:clamp(26px,6vw,46px);letter-spacing:.08em;margin:8px 0;
+  background:linear-gradient(180deg,var(--gold-bright),var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+.alliance-score{font-family:var(--mono);font-size:clamp(16px,3.5vw,22px);color:var(--muted)}
+.alliance-score .hi{color:var(--gold-bright);font-weight:700}
+.alliance-score .vs{color:var(--muted2);margin:0 8px}
+/* 학생 정체 숨김 버튼 */
+.s-reveal-row{display:flex;gap:8px;margin-bottom:16px}
+.peek{flex:1;font-family:var(--serif);font-weight:700;font-size:13px;padding:14px 6px;border-radius:10px;
+  border:1px solid var(--line);background:#0e0e13;color:var(--muted);cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none;transition:.12s;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.peek.on{background:linear-gradient(180deg,var(--gold-bright),var(--gold));color:#1a1407;border-color:var(--gold-bright);font-weight:800}
+.peek:active{transform:scale(.97)}
 .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
 .kv .k{color:var(--muted)}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#16140d;border:1px solid var(--gold-dim);
@@ -227,7 +254,7 @@ input[type=number]{-moz-appearance:textfield}
 
 <script>
 /* ============================================================
-   그림자 연합 · SHADOW UNION  —  온라인 버전 (Supabase Realtime)
+   그림자 연합 · SHADOW alliance  —  온라인 버전 (Supabase Realtime)
    구조
      LOGIC : 순수 게임 로직 (단위검증 완료)
      STORE : 인메모리 상태(교사가 권한 보유) + 변경 알림
@@ -394,7 +421,7 @@ const Store = (() => {
       state.command = randCommand();
       state.players.forEach(p=>{p.number=null; p.lastGain=0;});
       state.phase='playing';
-      state.timeLeft = state.timerSec; state.timerRunning=false;
+      state.timeLeft = state.timerSec; state.timerRunning=true;
       state.lastResult=null;
       emit();
     },
@@ -479,7 +506,7 @@ const Net = (() => {
       return new Promise((resolve)=>{
         if (!sb) return resolve(false);
         role = r; room = roomCode; subscribed = false;
-        ch = sb.channel('shadow-union-'+roomCode, { config:{ broadcast:{ self:false } } });
+        ch = sb.channel('shadow-alliance-'+roomCode, { config:{ broadcast:{ self:false } } });
 
         ch.on('broadcast', { event:'join' },     ({payload}) => { if(role==='host' && onJoin) onJoin(payload); });
         ch.on('broadcast', { event:'submit' },   ({payload}) => { if(role==='host' && onSubmit) onSubmit(payload); });
@@ -568,7 +595,9 @@ let myId = null;        // 학생 모드에서 내 플레이어 id
 let unsub = null;
 let lastHostSig = null, lastStuSig = null;   // 부분 렌더 판단용
 
-function go(view){ VIEW=view; lastHostSig=null; lastStuSig=null; if(unsub){unsub();unsub=null;} render(); }
+function go(view){ VIEW=view; lastHostSig=null; lastStuSig=null; hostPhase=null; stuPhase=null; if(unsub){unsub();unsub=null;} scrollTop(); render(); }
+let hostPhase=null, stuPhase=null, MODE='live';
+function scrollTop(){ try{ window.scrollTo(0,0); }catch(e){} }
 // 딥링크는 최초 로드 시 1회만 처리합니다 (initHash 참조).
 
 function render(){
@@ -578,91 +607,95 @@ function render(){
   if (VIEW==='student') return renderStudent();
 }
 
-/* ---------------- 랜딩 ---------------- */
+/* ---------------- 랜딩(표지) ---------------- */
 function renderLanding(){
   app.innerHTML='';
   const el = h(`<div class="landing fade">
     <div class="sigil">${sigilSVG}</div>
-    <div class="title-main">SHADOW UNION</div>
+    <div class="title-main">SHADOW alliance</div>
     <div class="title-sub">그 림 자 연 합</div>
-    <div class="role-grid">
-      <div class="card role" id="r-host">
-        <div class="ic">♚</div><h3>교사 · 프로젝터</h3>
-        <p>게임을 개설하고 라운드를 진행합니다.<br>교실 화면에 띄우세요.</p>
-      </div>
-      <div class="card role" id="r-student">
-        <div class="ic">☗</div><h3>학생 · 공작원</h3>
-        <p>개인 기기에서 접속해<br>숫자를 제출합니다.</p>
-      </div>
-    </div>
     <div class="tagline">말하라 · 속여라 · 배신하라 — 진실은 마지막에만 드러난다</div>
-    <button class="btn ghost" id="r-rules" style="margin-top:28px;letter-spacing:.1em">⟡ 세계관 · 규칙 보기</button>
+    <button class="btn primary cover-btn" id="r-rules">⟡ 세계관 보기</button>
   </div>`);
-  el.querySelector('#r-host').onclick = ()=>{ Audio_.coin(); go('host'); };
-  el.querySelector('#r-student').onclick = ()=>{ Audio_.coin(); location.hash='#student'; go('student'); };
   el.querySelector('#r-rules').onclick = ()=>{ Audio_.coin(); go('rules'); };
   app.appendChild(el);
 }
 
-/* ---------------- 세계관 · 규칙 페이지 ---------------- */
+/* ---------------- 세계관 · 규칙 페이지 (한 장씩) ---------------- */
+const RULES = [
+  { no:'01', cls:'', title:'두 개의 그림자',
+    body:`<p>세상은 두 비밀 조직 <b class="bk">⚫ 블랙 연합</b> 과 <b class="wt">⚪ 화이트 연합</b> 에 의해 은밀히 움직인다. 당신은 그 조직의 <b>공작원</b>이다. 입장하면 둘 중 한 곳에 자동 배정되며, <b>당신만</b> 자신의 소속을 알 수 있다.</p>` },
+  { no:'02', cls:'', title:'정체는 비밀이다',
+    body:`<p>자기 팀을 밝혀도, 거짓을 말해도 좋다. "나 블랙이야"라는 말이 진실인지 <b>확인할 방법은 없다</b>. 모든 진영은 게임이 끝나는 순간에만 드러난다.</p>` },
+  { no:'03', cls:'', title:'매 라운드, 하나의 지령',
+    body:`<p>본부는 매 라운드 <b>30 ~ 70 사이의 비밀 지령(숫자)</b> 을 내린다. 협상 시간 동안 교실을 자유롭게 돌아다니며 설득·정보 교환·블러핑·배신, 무엇이든 하라. 시간 안에 <b>1 ~ 100 중 숫자 하나</b> 를 제출한다.</p>
+    <p style="margin-top:14px">모두가 제출해도 <b>협상 시간(예: 5분)은 끝까지 흐른다.</b> 시간이 끝나기 전이라면 제출한 숫자를 <b>몇 번이든 바꿀 수 있다.</b> 단, 모든 공작원이 협상을 마쳤다면 프로젝터(교사)가 시간을 <b>일찍 끝낼 수 있다.</b></p>` },
+  { no:'04', cls:'', title:'지령에 가까운 자가 지배한다',
+    body:`<p>각 연합의 <b>제출 숫자 평균</b> 을 낸다. 지령에 더 <b>가까운</b> 연합이 그 라운드를 지배하고 <b>10,000 세력</b> 을 차지한다. 패배 연합은 0, 동점이면 양측 모두 변동 없음.</p>` },
+  { no:'05', cls:'gold', title:'욕심 vs 팀',
+    body:`<p>승리한 연합은 <b>10,000 세력</b>을 받아, <b>우리 편이 낸 숫자 크기만큼</b> 나눠 갖는다.</p>
+    <div class="formula">10,000 × ( 내 숫자 ÷ 우리 팀 숫자 총합 )</div>
+    <div class="kid">
+      <p><b>쉽게 말하면:</b> 우리 팀 3명이 각각 <b>20, 30, 50</b> 을 냈다면 합은 <b>100</b>. 그러면</p>
+      <p>· 50 낸 친구 → 절반인 <b>5,000</b><br>· 30 낸 친구 → <b>3,000</b><br>· 20 낸 친구 → <b>2,000</b></p>
+      <p><b>큰 숫자를 낼수록 더 많이</b> 가져간다. 하지만 모두가 욕심내 큰 숫자만 내면 팀 평균이 지령에서 멀어져 <b>아예 져 버린다!</b></p>
+    </div>` },
+  { no:'06', cls:'', title:'최후의 공작원',
+    body:`<p>총 5라운드. 누적 세력이 가장 많은 공작원이 최종 승리한다. 게임이 끝나면 모든 이의 진영이 공개된다. — <b>"헐, 너 우리 팀이었어?"</b></p>` },
+];
+let rulesStep = 0;
 function renderRules(){
   app.innerHTML='';
-  const el = h(`<div class="wrap fade">
+  if (rulesStep < 0) rulesStep = 0;
+  const last = rulesStep >= RULES.length;
+  const r = RULES[Math.min(rulesStep, RULES.length-1)];
+
+  const el = h(`<div class="wrap fade" style="max-width:680px">
     <div class="topbar">
-      <div class="left"><span class="brand">⟡ SHADOW UNION</span></div>
+      <div class="left"><span class="brand">⟡ SHADOW alliance</span></div>
       <button class="btn ghost sm" id="back">처음으로</button>
     </div>
-    <div class="center" style="margin:6px 0 34px">
+    <div class="center" style="margin:6px 0 22px">
       <div class="eyebrow">BRIEFING · 본부 기밀</div>
       <h1 class="rules-title">세계관 &amp; 규칙</h1>
+      <div class="rules-progress">${RULES.map((_,i)=>`<span class="${i<=Math.min(rulesStep,RULES.length-1)&&!last?'on':''} ${last?'on':''}"></span>`).join('')}</div>
     </div>
-
-    <div class="card rule-card">
-      <div class="rule-no">01</div>
-      <h2>두 개의 그림자</h2>
-      <p>세상은 두 비밀 조직 <b class="bk">⚫ 블랙 연합</b> 과 <b class="wt">⚪ 화이트 연합</b> 에 의해 은밀히 움직인다. 당신은 그 조직의 <b>공작원</b>이다. 입장하면 둘 중 한 곳에 자동 배정되며, <b>당신만</b> 자신의 소속을 알 수 있다.</p>
-    </div>
-
-    <div class="card rule-card">
-      <div class="rule-no">02</div>
-      <h2>정체는 비밀이다</h2>
-      <p>자기 팀을 밝혀도, 거짓을 말해도 좋다. "나 블랙이야"라는 말이 진실인지 <b>확인할 방법은 없다</b>. 모든 진영은 게임이 끝나는 순간에만 드러난다.</p>
-    </div>
-
-    <div class="card rule-card">
-      <div class="rule-no">03</div>
-      <h2>매 라운드, 하나의 지령</h2>
-      <p>본부는 매 라운드 <b>30 ~ 70 사이의 비밀 지령(숫자)</b> 을 내린다. 협상 시간 동안 교실을 자유롭게 돌아다니며 설득·정보 교환·블러핑·배신, 무엇이든 하라. 시간 안에 <b>1 ~ 100 중 숫자 하나</b> 를 제출한다.</p>
-    </div>
-
-    <div class="card rule-card">
-      <div class="rule-no">04</div>
-      <h2>지령에 가까운 자가 지배한다</h2>
-      <p>각 연합의 <b>제출 숫자 평균</b> 을 낸다. 지령에 더 <b>가까운</b> 연합이 그 라운드를 지배하고 <b>10,000 세력</b> 을 차지한다. 패배 연합은 0, 동점이면 양측 모두 변동 없음.</p>
-    </div>
-
-    <div class="card rule-card gold">
-      <div class="rule-no">05</div>
-      <h2>욕심 vs 팀</h2>
-      <p>승리 연합 안에서 개인이 받는 세력은</p>
-      <div class="formula">10,000 × ( 내 숫자 ÷ 우리 팀 숫자 총합 )</div>
-      <p>높은 숫자를 낼수록 더 많이 가져간다. 하지만 모두가 욕심을 내면 팀 평균이 무너져 패배한다. <b>팀의 승리와 나의 욕심</b> — 그 사이에서 선택하라.</p>
-    </div>
-
-    <div class="card rule-card">
-      <div class="rule-no">06</div>
-      <h2>최후의 공작원</h2>
-      <p>총 5라운드. 누적 세력이 가장 많은 공작원이 최종 승리한다. 게임이 끝나면 모든 이의 진영이 공개된다. — <b>"헐, 너 우리 팀이었어?"</b></p>
-    </div>
-
-    <div class="center" style="margin-top:32px">
-      <button class="btn primary" id="go-host" style="font-size:17px;padding:14px 44px">⟡ 게임 개설하기</button>
-    </div>
+    <div id="rule-slot"></div>
   </div>`);
-  el.querySelector('#back').onclick=()=>go('landing');
-  el.querySelector('#go-host').onclick=()=>{ Audio_.coin(); go('host'); };
+
+  const slot = el.querySelector('#rule-slot');
+  if (!last){
+    slot.appendChild(h(`<div class="card rule-card ${r.cls} ruleslide">
+      <div class="rule-no">${r.no}</div>
+      <h2>${r.title}</h2>
+      ${r.body}
+    </div>`));
+    const nav = h(`<div class="row" style="justify-content:space-between;margin-top:24px">
+      <button class="btn ghost" id="prev" ${rulesStep===0?'style="visibility:hidden"':''}>‹ 이전</button>
+      <span class="notice" style="align-self:center">${rulesStep+1} / ${RULES.length}</span>
+      <button class="btn primary" id="next" style="padding:12px 34px">${rulesStep===RULES.length-1?'완료 ›':'다음 ›'}</button>
+    </div>`);
+    nav.querySelector('#prev').onclick=()=>{ Audio_.tick(); rulesStep--; scrollTop(); renderRules(); };
+    nav.querySelector('#next').onclick=()=>{ Audio_.tick(); rulesStep++; scrollTop(); renderRules(); };
+    slot.appendChild(nav);
+  } else {
+    slot.appendChild(h(`<div class="card rule-card gold ruleslide center" style="text-align:center">
+      <h2 style="text-align:center">준비 완료</h2>
+      <p>이제 시작할 수 있다. 가볍게 흐름을 보려면 <b>테스트</b>, 실제 수업이라면 <b>게임 개설</b>.</p>
+      <div class="row" style="justify-content:center;margin-top:24px;gap:14px">
+        <button class="btn ghost" id="go-test" style="font-size:16px;padding:14px 32px">⟲ 테스트하기</button>
+        <button class="btn primary" id="go-live" style="font-size:16px;padding:14px 32px">⟡ 게임 개설하기</button>
+      </div>
+      <button class="btn ghost sm" id="re" style="margin-top:18px">규칙 다시 보기</button>
+    </div>`));
+    slot.querySelector('#go-test').onclick=()=>{ Audio_.gong(); startTest(); };
+    slot.querySelector('#go-live').onclick=()=>{ Audio_.gong(); MODE='live'; go('host'); };
+    slot.querySelector('#re').onclick=()=>{ rulesStep=0; scrollTop(); renderRules(); };
+  }
+  el.querySelector('#back').onclick=()=>{ rulesStep=0; go('landing'); };
   app.appendChild(el);
 }
+function startTest(){ MODE='test'; Store.reset(); go('host'); }
 
 /* ============================================================
    접속 설정 화면 (Supabase URL/Key + 방 코드)
@@ -675,7 +708,7 @@ function renderConnect(role){
   const prefRoom = pendingRoom || '';
 
   const el = h(`<div class="wrap fade" style="max-width:560px">
-    <div class="topbar"><div class="left"><span class="brand">⟡ SHADOW UNION</span></div>
+    <div class="topbar"><div class="left"><span class="brand">⟡ SHADOW alliance</span></div>
       <button class="btn ghost sm" id="back">처음으로</button></div>
     <div class="center" style="margin:6px 0 26px">
       <div class="eyebrow">${role==='host'?'본부 개설':'공작원 접속'}</div>
@@ -690,11 +723,7 @@ function renderConnect(role){
       <div class="label">Publishable / anon Key</div>
       <input id="key" style="width:100%" placeholder="sb_publishable_... 또는 eyJ...">
       <p class="notice" style="margin-top:10px">이 두 값은 이 브라우저에 저장됩니다. (브라우저에 노출돼도 안전한 공개 키입니다)</p>
-    </div>` : `
-    <div class="card" style="padding:14px 18px;margin-bottom:16px">
-      <div class="kv" style="border:none"><span class="k">Supabase</span><span style="color:var(--gold-bright)">✓ 연결됨</span></div>
-      <button class="btn ghost sm" id="recfg" style="margin-top:6px">연결 정보 변경</button>
-    </div>`}
+    </div>` : ``}
 
     ${role==='host' ? `
       <div class="card" style="padding:22px">
@@ -741,7 +770,7 @@ function renderConnect(role){
     Audio_.coin();
     if(role==='host'){
       if(resume) Store.load(savedHost.state);
-      connectedHost = true; pendingRoom=room; go('host');
+      MODE='live'; connectedHost = true; pendingRoom=room; go('host');
     } else {
       pendingRoom=room; go('student');
     }
@@ -759,15 +788,17 @@ let connectedHost=false, pendingRoom=null;
    교사(프로젝터) 화면
    ============================================================ */
 function renderHost(){
-  if (!Net.ready('host')) return renderConnect('host');
-  // 호스트로서 네트워크 수신 (학생의 join / submit 처리)
-  Net.asHost({
-    onJoin:(m)=>{ const p=Store.addPlayer(); Net.assign(m.reqId, {id:p.id,nick:p.nick,team:p.team}); },
-    onSubmit:(m)=>{ Store.submit(m.id, m.num); }
-  });
+  if (MODE==='live' && !Net.ready('host')) return renderConnect('host');
+  // 라이브 모드: 학생의 join / submit 수신
+  if (Net.ready('host')){
+    Net.asHost({
+      onJoin:(m)=>{ const p=Store.addPlayer(); Net.assign(m.reqId, {id:p.id,nick:p.nick,team:p.team}); },
+      onSubmit:(m)=>{ Store.submit(m.id, m.num); }
+    });
+  }
   if (unsub) unsub();
-  unsub = Store.subscribe(()=>{ drawHost(); LS.saveHost(Net.getRoom()); });
-  Store.get(); Net.broadcast(Store.snapshot());  // 현재 상태 1회 송출
+  unsub = Store.subscribe(()=>{ drawHost(); if(MODE==='live' && Net.ready('host')) LS.saveHost(Net.getRoom()); });
+  if (Net.ready('host')) Net.broadcast(Store.snapshot());  // 현재 상태 1회 송출
   drawHost();
 }
 
@@ -791,6 +822,7 @@ function drawHost(){
     return;
   }
   lastHostSig = sig;
+  if (s.phase!==hostPhase){ hostPhase=s.phase; scrollTop(); }
 
   app.innerHTML='';
   const wrap = h(`<div class="wrap fade"></div>`);
@@ -809,7 +841,7 @@ function drawHost(){
 function hostTopbar(s){
   const t = h(`<div class="topbar">
     <div class="left">
-      <span class="brand">⟡ SHADOW UNION</span>
+      <span class="brand">⟡ SHADOW alliance</span>
       ${s.phase!=='lobby' && s.phase!=='final' ? `<span class="round-pill">ROUND ${s.round} / ${s.totalRounds}</span>`:''}
     </div>
     <div class="row">
@@ -824,19 +856,20 @@ function hostTopbar(s){
 
 /* ---- 로비 ---- */
 function hostLobby(s){
-  const joinUrl = Conn.joinURL(Net.getRoom());
+  const live = (MODE==='live');
+  const joinUrl = live ? Conn.joinURL(Net.getRoom()) : '';
   const el = h(`<div>
+    ${live ? `
     <div class="card command-box" style="padding:24px">
       <div class="eyebrow">학생 접속</div>
       <div class="room-code">${Net.getRoom()}</div>
       <div class="qr-wrap"><div id="qrbox"></div></div>
       <p class="notice" style="margin-top:12px">학생: QR 스캔, 또는 아래 주소 접속 후 위 <b>방 코드</b> 입력</p>
       <div class="join-url">${joinUrl}</div>
-    </div>
-
-    <div class="card" style="padding:18px;margin-top:18px">
-      <div class="eyebrow">공작원 모집 · 수동 추가 (테스트용)</div>
-      <p class="notice" style="margin:6px 0 12px">실제 수업에선 학생이 직접 접속해 자동 합류합니다.</p>
+    </div>` : `
+    <div class="card" style="padding:18px">
+      <div class="eyebrow">테스트 모드 · 가상 공작원 추가</div>
+      <p class="notice" style="margin:6px 0 12px">버튼으로 가상 인원을 추가해 게임 흐름을 검증할 수 있습니다.</p>
       <div class="row center" style="justify-content:center;margin-top:6px">
         <button class="btn sm" data-add="1">+1명</button>
         <button class="btn sm" data-add="5">+5명</button>
@@ -844,7 +877,7 @@ function hostLobby(s){
         <button class="btn ghost sm" id="rebal">팀 재배정</button>
         <button class="btn ghost sm" id="clear">전체 삭제</button>
       </div>
-    </div>
+    </div>`}
 
     <div class="card" style="padding:18px;margin-top:18px">
       <div class="row" style="justify-content:space-between;margin-bottom:14px">
@@ -853,7 +886,7 @@ function hostLobby(s){
           <span style="color:var(--team-white)">⚪${s.players.filter(p=>p.team==='white').length}</span></div>
       </div>
       <div class="grid-players" id="plist"></div>
-      ${s.players.length===0?`<p class="notice center" style="padding:20px 0">아직 공작원이 없습니다. 위 버튼으로 추가하세요.</p>`:''}
+      ${s.players.length===0?`<p class="notice center" style="padding:20px 0">${live?'학생이 접속하면 여기에 표시됩니다.':'위 버튼으로 가상 공작원을 추가하세요.'}</p>`:''}
     </div>
 
     <div class="card" style="padding:18px;margin-top:18px">
@@ -871,13 +904,13 @@ function hostLobby(s){
 
     <div class="center" style="margin-top:24px">
       <button class="btn primary" id="start" style="font-size:18px;padding:16px 50px">⟡ 게임 시작</button>
-      <p class="notice" style="margin-top:12px">학생이 접속하면 자동으로 명단에 추가됩니다. 충분히 모인 뒤 시작하세요.</p>
+      <p class="notice" style="margin-top:12px">${live?'학생이 접속하면 자동으로 명단에 추가됩니다. 충분히 모인 뒤 시작하세요.':'가상 인원을 추가한 뒤 시작하세요.'}</p>
     </div>
   </div>`);
 
   el.querySelectorAll('[data-add]').forEach(b=> b.onclick=()=>{ Store.addMany(+b.dataset.add); Audio_.coin(); });
-  el.querySelector('#rebal').onclick=()=>Store.rebalanceTeams();
-  el.querySelector('#clear').onclick=async()=>{ if(await confirmModal('명단을 전체 삭제할까요?')) Store.reset(); };
+  el.querySelector('#rebal') && (el.querySelector('#rebal').onclick=()=>Store.rebalanceTeams());
+  el.querySelector('#clear') && (el.querySelector('#clear').onclick=async()=>{ if(await confirmModal('명단을 전체 삭제할까요?')) Store.reset(); });
   el.querySelector('#tsel').onchange=(e)=>Store.setTimerSec(+e.target.value);
   el.querySelector('#edit').onchange=(e)=>Store.setEditable(e.target.checked);
   el.querySelector('#start').onclick=()=>{ if(s.players.length<2){ return toast('최소 2명 이상 필요합니다.'); } Audio_.gong(); Store.startGame(); };
@@ -889,17 +922,16 @@ function hostLobby(s){
         <span class="nm">${p.nick}</span>
         <span class="dot ${p.team==='black'?'b':'w'}"></span>
       </div>
-      <div class="row" style="gap:6px">
+      ${live?'':`<div class="row" style="gap:6px">
         <button class="btn ghost sm" data-re="${p.id}" style="padding:3px 7px;font-size:11px">🎲</button>
         <button class="btn ghost sm" data-rm="${p.id}" style="padding:3px 7px;font-size:11px">✕</button>
-      </div>
+      </div>`}
     </div>`);
-    chip.querySelector('[data-re]').onclick=()=>Store.regenNick(p.id);
-    chip.querySelector('[data-rm]').onclick=()=>Store.removePlayer(p.id);
+    chip.querySelector('[data-re]') && (chip.querySelector('[data-re]').onclick=()=>Store.regenNick(p.id));
+    chip.querySelector('[data-rm]') && (chip.querySelector('[data-rm]').onclick=()=>Store.removePlayer(p.id));
     list.appendChild(chip);
   });
-  // QR 코드 생성
-  setTimeout(()=>{
+  if (live) setTimeout(()=>{
     const box=el.querySelector('#qrbox');
     if(box && window.QRCode){ box.innerHTML=''; try{ new QRCode(box,{text:joinUrl,width:150,height:150,colorDark:'#0a0a0c',colorLight:'#f4f1ea',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
   },50);
@@ -920,7 +952,7 @@ function hostPlaying(s){
       <div class="row center" style="justify-content:center;margin-top:18px">
         ${s.timerRunning
           ? `<button class="btn sm" id="pause">⏸ 일시정지</button>`
-          : `<button class="btn primary sm" id="play">▶ 협상 시작</button>`}
+          : `<button class="btn primary sm" id="play">▶ 재개</button>`}
         <button class="btn ghost sm" id="add30">+30초</button>
         <button class="btn ghost sm" id="sub30">-30초</button>
       </div>
@@ -937,7 +969,7 @@ function hostPlaying(s){
     <div class="center" style="margin-top:24px">
       <button class="btn primary" id="reveal" style="font-size:18px;padding:16px 50px">⟡ 협상 종료 · 결과 공개</button>
     </div>
-    ${hostSimulator(s)}
+    ${MODE==='test'?hostSimulator(s):''}
   </div>`);
 
   el.querySelector('#play') && (el.querySelector('#play').onclick=()=>{ Store.startTimer(); Audio_.suspense(); });
@@ -953,7 +985,7 @@ function hostPlaying(s){
       <div class="st">${p.number!=null?'✓ 제출 완료':'· 협상 중'}</div>
     </div>`));
   });
-  wireSimulator(el, s);
+  if (MODE==='test') wireSimulator(el, s);
   return el;
 }
 
@@ -1001,13 +1033,30 @@ function wireSimulator(el, s){
 /* ---- 결과 단계적 공개 연출 ---- */
 async function runRevealSequence(){
   const res = Store.computeReveal();   // 세력 적립 + phase=revealing
-  // drawHost가 revealing 화면을 그림. 그 안에서 단계별로 클래스 토글.
   drawHost();
-  await sleep(400);
-  Audio_.suspense();
-  await sleep(1200);
+  await sleep(300);
 
-  // 2) 블랙 평균
+  // 1) 멋진 문구 순차 등장 ("계산 중…")
+  const load = $('#reveal-loading');
+  const lines = [
+    '본부, 전 공작원의 보고를 수신했다',
+    '암호를 해독하는 중…',
+    '⚫ 블랙 연합의 세력을 규합하는 중…',
+    '⚪ 화이트 연합의 세력을 규합하는 중…',
+    '지령과의 오차를 계산하는 중…',
+  ];
+  if (load){
+    for (const ln of lines){
+      const e = h(`<div class="rl-line">⟡ ${ln}</div>`);
+      load.appendChild(e); Audio_.tick();
+      await sleep(850);
+    }
+    await sleep(350);
+    load.classList.add('rl-fade');     // 문구 흐려지며 사라짐
+    await sleep(450);
+  }
+
+  // 2) 블랙 평균 (어둠 → 서서히 밝아짐)
   const bp = $('#tp-black'); if(bp){ bp.classList.add('show'); Audio_.reveal(); }
   await sleep(3000);
   // 3) 화이트 평균
@@ -1019,11 +1068,10 @@ async function runRevealSequence(){
   if (res.winner==='white' && wp) wp.classList.add('winner'), $('#tp-black')?.classList.add('loser');
   const banner=$('#winbanner'); if(banner){ banner.classList.add('show');
     res.winner==='tie'?Audio_.gong():Audio_.victory(); }
-  await sleep(3000);
-  // 5) 개인 세력 → 학생 화면(스냅샷에 lastGain 포함, 자동 반영). 호스트엔 안내.
+  await sleep(1000);  // 승리 → 세력공개 안내 (1초)
+  // 5) 개인 세력 공개 안내
   const note=$('#gain-note'); if(note){ note.classList.remove('hidden'); Audio_.coin(); }
-  await sleep(2500);
-  // 다음 단계 버튼 노출
+  await sleep(1000);  // 안내 → 계속 버튼 (1초)
   const nx=$('#to-post'); if(nx){ nx.classList.remove('hidden'); nx.classList.add('fade'); }
 }
 
@@ -1032,6 +1080,8 @@ function hostReveal(s){
   const el = h(`<div class="reveal-stage">
     <div class="eyebrow">중앙 지령</div>
     <div class="command-num" style="font-size:clamp(50px,11vw,110px)">${r.command}</div>
+
+    <div id="reveal-loading" class="reveal-loading"></div>
 
     <div class="team-result">
       <div class="card team-panel bk" id="tp-black">
@@ -1121,6 +1171,12 @@ function hostFinal(s){
   const top3 = ranks.slice(0,3);
   const black = s.players.filter(p=>p.team==='black').sort((a,b)=>b.power-a.power);
   const white = s.players.filter(p=>p.team==='white').sort((a,b)=>b.power-a.power);
+  // 라운드 승리 집계
+  let bw=0, ww=0;
+  (s.history||[]).forEach(r=>{ if(r.winner==='black')bw++; else if(r.winner==='white')ww++; });
+  const allianceWin = bw>ww?'black':ww>bw?'white':'tie';
+  const allianceTxt = allianceWin==='black'?'⚫ 블랙 연합 우승'
+    : allianceWin==='white'?'⚪ 화이트 연합 우승' : '⟡ 두 연합 무승부';
 
   const el = h(`<div class="fade">
     <div class="center" style="margin:10px 0 6px">
@@ -1128,10 +1184,16 @@ function hostFinal(s){
       <h1 class="crest" style="font-size:clamp(30px,7vw,52px);color:var(--gold-bright);margin-top:6px">세력 시상대</h1>
     </div>
 
+    <div class="card command-box" style="padding:20px;margin-top:8px">
+      <div class="eyebrow">우승 연합 · 5라운드 중 승리 횟수</div>
+      <div class="alliance-win">${allianceTxt}</div>
+      <div class="alliance-score"><span class="${allianceWin==='black'?'hi':''}">⚫ ${bw}승</span> <span class="vs">:</span> <span class="${allianceWin==='white'?'hi':''}">${ww}승 ⚪</span></div>
+    </div>
+
     <div class="podium" id="podium"></div>
 
     <div class="card" style="padding:18px;margin-top:10px">
-      <div class="eyebrow center" style="margin-bottom:12px">전체 순위</div>
+      <div class="eyebrow center" style="margin-bottom:12px">전체 순위 · 개인 세력</div>
       <div class="rank-list" id="allranks"></div>
     </div>
 
@@ -1231,6 +1293,7 @@ function drawStudent(snap){
     return;
   }
   lastStuSig = sig;
+  if (snap.phase!==stuPhase){ stuPhase=snap.phase; scrollTop(); }
 
   app.innerHTML='';
   const me = myId ? findMe(snap) : null;
@@ -1251,7 +1314,7 @@ function drawStudent(snap){
     return;
   }
 
-  const teamTxt = me.team==='black'?'⚫ BLACK':'⚪ WHITE';
+  const teamTxt = me.team==='black'?'⚫ 블랙 연합':'⚪ 화이트 연합';
   let body='';
 
   if (snap.phase==='lobby'){
@@ -1311,15 +1374,24 @@ function drawStudent(snap){
   }
 
   const el = h(`<div class="student fade">
-    <div class="s-head">
-      <div>
-        <div class="s-nick">${me.nick}</div>
-        <div class="s-team">${teamTxt}</div>
-      </div>
-      <div class="s-power"><div class="v">${me.power.toLocaleString()}</div><div class="l">세력</div></div>
+    <div class="s-reveal-row">
+      <button class="peek" data-val="${me.nick}">👁 내 닉네임</button>
+      <button class="peek" data-val="${teamTxt}">👁 내 팀</button>
+      <button class="peek" data-val="${me.power.toLocaleString()} 세력">👁 내 세력</button>
     </div>
     <div class="card" style="flex:1;display:flex;flex-direction:column">${body}</div>
   </div>`);
+
+  // 길게 누르고 있는 동안에만 값 표시 (떼면 다시 숨김)
+  el.querySelectorAll('.peek').forEach(btn=>{
+    const label = btn.textContent, val = btn.dataset.val;
+    const show=(e)=>{ e.preventDefault(); btn.textContent=val; btn.classList.add('on'); };
+    const hide=()=>{ btn.textContent=label; btn.classList.remove('on'); };
+    btn.addEventListener('pointerdown', show);
+    btn.addEventListener('pointerup', hide);
+    btn.addEventListener('pointerleave', hide);
+    btn.addEventListener('pointercancel', hide);
+  });
 
   // 이벤트 바인딩
   const submitBtn = el.querySelector('#submit');
