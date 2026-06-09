@@ -903,19 +903,45 @@ function drawHost(){
 }
 
 function hostTopbar(s){
+  const live = (MODE==='live' && Net.getRoom());
   const t = h(`<div class="topbar">
     <div class="left">
       <span class="brand">⟡ SHADOW alliance</span>
       ${s.phase!=='lobby' && s.phase!=='final' ? `<span class="round-pill">ROUND ${s.round} / ${s.totalRounds}</span>`:''}
     </div>
     <div class="row">
+      ${live ? `<button class="btn sm" id="showqr">📷 접속 QR</button>` : ''}
       <button class="btn ghost sm" id="mute">${Audio_.isMuted()?'🔇 음소거':'🔊 사운드'}</button>
       <button class="btn ghost sm" id="home">처음으로</button>
     </div>
   </div>`);
+  t.querySelector('#showqr') && (t.querySelector('#showqr').onclick=()=>{ Audio_.coin(); showJoinModal(); });
   t.querySelector('#mute').onclick=(e)=>{ const m=Audio_.toggle(); e.target.textContent=m?'🔇 음소거':'🔊 사운드'; };
   t.querySelector('#home').onclick=async()=>{ if(await confirmModal('처음 화면으로 돌아갈까요?<br>진행 중인 게임은 유지됩니다.')) go('landing'); };
   return t;
+}
+
+/* ---- 접속 QR 모달 (라운드 중 튕긴 학생 재접속용) ---- */
+function showJoinModal(){
+  const room = Net.getRoom(); if(!room) return;
+  const joinUrl = Conn.joinURL(room);
+  const host = document.querySelector('#toast-host');
+  const ov = h(`<div class="modal-ov" id="qr-ov"><div class="modal-box card" style="max-width:420px">
+    <div class="eyebrow">다시 접속하기</div>
+    <div class="room-code" style="font-size:clamp(40px,10vw,64px);margin:6px 0">${room}</div>
+    <div class="qr-wrap"><div id="qrbox-modal"></div></div>
+    <p class="notice" style="margin-top:12px">튕긴 학생은 이 QR을 스캔하거나, 아래 주소 접속 후 위 <b>방 코드</b>를 입력하면 <b>같은 닉네임으로</b> 다시 들어옵니다.</p>
+    <div class="join-url">${joinUrl}</div>
+    <button class="btn primary" id="qr-close" style="margin-top:18px;padding:12px 36px">닫기</button>
+  </div></div>`);
+  host.appendChild(ov);
+  setTimeout(()=>{
+    const box=ov.querySelector('#qrbox-modal');
+    if(box && window.QRCode){ try{ new QRCode(box,{text:joinUrl,width:180,height:180,colorDark:'#0a0a0c',colorLight:'#f4f1ea',correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
+  },30);
+  const close=()=>ov.remove();
+  ov.querySelector('#qr-close').onclick=close;
+  ov.onclick=(e)=>{ if(e.target===ov) close(); };  // 배경 클릭 시 닫기
 }
 
 /* ---- 로비 ---- */
