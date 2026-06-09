@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>그림자 연합 · SHADOW alliance</title>
+<title>그림자 연합 · SHADOW ALLIANCE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Nanum+Myeongjo:wght@400;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.0"></script>
+<script>if(!window.supabase){var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2.108.0/dist/umd/supabase.js';document.head.appendChild(s);}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
@@ -245,12 +246,23 @@ input[type=number]{-moz-appearance:textfield}
 .kv .k{color:var(--muted)}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#16140d;border:1px solid var(--gold-dim);
   color:var(--gold-bright);padding:12px 22px;border-radius:10px;z-index:99;font-size:14px;box-shadow:var(--shadow);animation:fade .3s both}
+.netbar{position:fixed;left:14px;bottom:14px;z-index:90;font-family:var(--mono);font-size:12px;background:#121217;
+  border:1px solid var(--line);border-radius:10px;padding:8px 11px;display:flex;align-items:center;gap:9px;box-shadow:var(--shadow);max-width:86vw}
+.netbar .nb-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.netbar .nb-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--white)}
+.netbar .nb-retry{font-family:var(--serif);font-weight:700;font-size:12px;padding:4px 10px;border-radius:7px;border:1px solid var(--gold-dim);background:#16151a;color:var(--gold-bright);cursor:pointer;flex:none}
+.nb-ok{background:#3fae5a;box-shadow:0 0 8px #3fae5a}.nb-warn{background:#d8a23a;box-shadow:0 0 8px #d8a23a}
+.nb-err{background:#c0473e;box-shadow:0 0 8px #c0473e}.nb-idle{background:#5c5c66}
+.netbar .nb-log{position:absolute;bottom:48px;left:0;background:#0e0e13;border:1px solid var(--line);border-radius:10px;padding:8px 12px;max-width:320px;display:none}
+.netbar.open .nb-log{display:block}
+.nb-log div{color:var(--muted);font-size:11px;line-height:1.7;white-space:nowrap}
 @media(max-width:560px){.role-grid{grid-template-columns:1fr}.team-reveal{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div id="toast-host"></div>
+<div id="netbar" class="netbar hidden"></div>
 
 <script>
 /* ============================================================
@@ -483,10 +495,51 @@ const Store = (() => {
    ============================================================ */
 const Net = (() => {
   let sb=null, ch=null, role=null, room=null, subscribed=false;
-  let onSnap=null, onJoin=null, onSubmit=null, onAssigned=null;
+  let onSnap=null, onJoin=null, onSubmit=null, onAssigned=null, onStatus=null;
+  let everConnected=false, retry=0, reconnectTimer=null, intentional=false;
 
   function send(event, payload){
-    if (ch && subscribed) ch.send({ type:'broadcast', event, payload: payload||{} });
+    if (ch && subscribed) { try{ ch.send({ type:'broadcast', event, payload: payload||{} }); }catch(e){} }
+  }
+  function status(s, detail){ if(onStatus) try{ onStatus(s, detail); }catch(e){} }
+
+  function attach(){
+    ch.on('broadcast', { event:'join' },     ({payload}) => { if(role==='host' && onJoin) onJoin(payload); });
+    ch.on('broadcast', { event:'submit' },   ({payload}) => { if(role==='host' && onSubmit) onSubmit(payload); });
+    ch.on('broadcast', { event:'hello' },    ()          => { if(role==='host') send('snap', { snap: Store.snapshot() }); });
+    ch.on('broadcast', { event:'snap' },     ({payload}) => { if(role==='client' && onSnap) onSnap(payload.snap); });
+    ch.on('broadcast', { event:'assigned' }, ({payload}) => { if(role==='client' && onAssigned) onAssigned(payload); });
+  }
+  function build(){
+    if (ch){ try{ sb.removeChannel(ch); }catch(e){} ch=null; }
+    ch = sb.channel('shadow-alliance-'+room, { config:{ broadcast:{ self:false } } });
+    attach();
+  }
+  function onSubscribed(){
+    subscribed=true; everConnected=true; retry=0;
+    if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
+    // 재연결/최초연결 시 동기화
+    if(role==='client') send('hello');
+    if(role==='host')   send('snap', { snap: Store.snapshot() });
+  }
+  function scheduleReconnect(){
+    if (intentional || reconnectTimer) return;
+    const delay = Math.min(10000, 1000 * Math.pow(2, retry++));  // 1,2,4,8,10초…
+    status('RECONNECTING', Math.round(delay/1000));
+    reconnectTimer = setTimeout(()=>{
+      reconnectTimer=null; if(intentional) return;
+      build();
+      ch.subscribe((st)=>handleStatus(st));
+    }, delay);
+  }
+  function handleStatus(st, firstResolve){
+    status(st);
+    if (st==='SUBSCRIBED'){ onSubscribed(); if(firstResolve) firstResolve(true); }
+    else if (st==='CHANNEL_ERROR' || st==='TIMED_OUT' || st==='CLOSED'){
+      subscribed=false;
+      if(firstResolve) firstResolve(false);     // 최초 연결 실패 알림
+      if(everConnected) scheduleReconnect();      // 한 번이라도 붙었으면 자동 재연결
+    }
   }
 
   return {
@@ -494,31 +547,40 @@ const Net = (() => {
     enabled:()=>subscribed,
     ready(r){ return subscribed && role===r; },
     getRole:()=>role, getRoom:()=>room,
+    onStatus(fn){ onStatus=fn; },
 
     configure(url, key){
-      if (!window.supabase) { alert('Supabase 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.'); return false; }
-      try { sb = window.supabase.createClient(url, key, { realtime:{ params:{ eventsPerSecond: 20 } } }); return true; }
-      catch(e){ console.error(e); return false; }
+      if (!window.supabase) { return false; }
+      try {
+        sb = window.supabase.createClient(url, key, { realtime:{ params:{ eventsPerSecond: 20 } } });
+        return true;
+      } catch(e){ console.error(e); return false; }
     },
 
     // 방 채널 구독. role: 'host' | 'client'. 성공 시 resolve(true)
     openRoom(roomCode, r){
       return new Promise((resolve)=>{
         if (!sb) return resolve(false);
-        role = r; room = roomCode; subscribed = false;
-        ch = sb.channel('shadow-alliance-'+roomCode, { config:{ broadcast:{ self:false } } });
-
-        ch.on('broadcast', { event:'join' },     ({payload}) => { if(role==='host' && onJoin) onJoin(payload); });
-        ch.on('broadcast', { event:'submit' },   ({payload}) => { if(role==='host' && onSubmit) onSubmit(payload); });
-        ch.on('broadcast', { event:'hello' },    ()          => { if(role==='host') send('snap', { snap: Store.snapshot() }); });
-        ch.on('broadcast', { event:'snap' },     ({payload}) => { if(role==='client' && onSnap) onSnap(payload.snap); });
-        ch.on('broadcast', { event:'assigned' }, ({payload}) => { if(role==='client' && onAssigned) onAssigned(payload); });
-
-        ch.subscribe((status)=>{
-          if (status==='SUBSCRIBED'){ subscribed=true; resolve(true); }
-          else if (status==='CHANNEL_ERROR' || status==='TIMED_OUT'){ subscribed=false; resolve(false); }
-        });
+        role=r; room=roomCode; subscribed=false; intentional=false; everConnected=false; retry=0;
+        if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
+        let settled=false;
+        const first=(v)=>{ if(!settled){ settled=true; resolve(v); } };
+        status('CONNECTING');
+        build();
+        ch.subscribe((st)=>handleStatus(st, first));
+        // 8초 안에 응답 없으면 실패 처리(이후 자동 재연결은 everConnected 조건상 동작 안 함 → 사용자가 재시도)
+        setTimeout(()=>{ if(!settled){ first(false); status('TIMED_OUT'); } }, 8000);
       });
+    },
+
+    // 사용자가 수동으로 다시 연결 시도
+    retryNow(){
+      if(!sb || !room || !role) return;
+      retry=0; intentional=false;
+      if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
+      status('CONNECTING');
+      build();
+      ch.subscribe((st)=>handleStatus(st));
     },
 
     asHost(hnd){ onJoin=hnd.onJoin; onSubmit=hnd.onSubmit; },
@@ -529,7 +591,8 @@ const Net = (() => {
     join(reqId){ send('join', { reqId }); },
     submit(id, num){ send('submit', { id, num }); },
 
-    leave(){ try{ if(ch) sb.removeChannel(ch); }catch(e){} ch=null; subscribed=false; role=null; room=null; },
+    leave(){ intentional=true; if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
+      try{ if(ch) sb.removeChannel(ch); }catch(e){} ch=null; subscribed=false; role=null; room=null; },
   };
 })();
 
@@ -538,7 +601,7 @@ const Conn = {
   // 배포 전 아래 두 값을 채우면 학생은 입력 없이 QR/링크로 바로 접속됩니다.
   baked: {
     URL: "https://evkyiemqdeoaaorynozy.supabase.co",   // 예: https://abcdwxyz.supabase.co
-    KEY: "sb_publishable_tJMt-VPnVPw5aX1FgV-YHA_6cZ1J6cR",   // Publishable key (sb_publishable_...) 또는 legacy anon key
+    KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2a3lpZW1xZGVvYWFvcnlub3p5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3OTI5NTYsImV4cCI6MjA5NjM2ODk1Nn0.VRURNH8nXpK8wpAaDG3YlV7NwqaBDr7CNj9WTbQTdTY",   // Legacy anon key (eyJ... 로 시작). Settings → API → Project API keys → anon public
   },
   cfg(){
     if (this.baked.URL && this.baked.KEY) return { url:this.baked.URL, key:this.baked.KEY };
@@ -610,6 +673,7 @@ function render(){
 /* ---------------- 랜딩(표지) ---------------- */
 function renderLanding(){
   app.innerHTML='';
+  const nb=document.querySelector('#netbar'); if(nb) nb.classList.add('hidden');
   const el = h(`<div class="landing fade">
     <div class="sigil">${sigilSVG}</div>
     <div class="title-main">SHADOW alliance</div>
@@ -720,9 +784,9 @@ function renderConnect(role){
       <div class="eyebrow" style="margin-bottom:12px">Supabase 연결 (최초 1회)</div>
       <div class="label">Project URL</div>
       <input id="url" style="width:100%;margin-bottom:12px" placeholder="https://xxxxx.supabase.co" value="${cfg?cfg.url:''}">
-      <div class="label">Publishable / anon Key</div>
-      <input id="key" style="width:100%" placeholder="sb_publishable_... 또는 eyJ...">
-      <p class="notice" style="margin-top:10px">이 두 값은 이 브라우저에 저장됩니다. (브라우저에 노출돼도 안전한 공개 키입니다)</p>
+      <div class="label">Legacy anon key</div>
+      <input id="key" style="width:100%" placeholder="eyJ... (Settings → API → anon public)">
+      <p class="notice" style="margin-top:10px">Supabase 대시보드 <b>Settings → API → Project API keys</b> 의 <b>anon public</b> 키(eyJ…로 시작)를 붙여넣으세요. 이 값들은 이 브라우저에 저장됩니다.</p>
     </div>` : ``}
 
     ${role==='host' ? `
@@ -1420,6 +1484,33 @@ let currentInput = null, editing = false;
    메인 타이머 루프
    ============================================================ */
 setInterval(()=>Store.tick(), 1000);
+
+/* ---------- 실시간 연결 상태 표시 ---------- */
+const STATUS_KO = {
+  CONNECTING:   ['연결 중…',                 'nb-warn'],
+  SUBSCRIBED:   ['실시간 연결됨',             'nb-ok'],
+  CHANNEL_ERROR:['연결 오류 · CHANNEL_ERROR', 'nb-err'],
+  TIMED_OUT:    ['응답 시간 초과 · TIMED_OUT','nb-err'],
+  CLOSED:       ['연결 종료 · CLOSED',        'nb-idle'],
+  RECONNECTING: ['재연결 중…',                'nb-warn'],
+};
+let netLog=[], netOpen=false;
+function setNetStatusUI(st, detail){
+  const bar=document.querySelector('#netbar'); if(!bar) return;
+  bar.classList.remove('hidden');
+  let [txt,cls]=STATUS_KO[st]||[st,'nb-idle'];
+  if(st==='RECONNECTING' && detail) txt=`재연결 중… (${detail}초 후 재시도)`;
+  const t=new Date().toLocaleTimeString('ko-KR',{hour12:false});
+  netLog.unshift(`${t} · ${st}${detail?(' '+detail):''}`); netLog=netLog.slice(0,8);
+  bar.classList.toggle('open', netOpen);
+  bar.innerHTML = `<span class="nb-dot ${cls}"></span><span class="nb-txt">${txt}</span>
+    <button class="nb-retry" id="nb-retry">재연결</button>
+    <button class="nb-retry" id="nb-logbtn" style="border-color:var(--line);color:var(--muted)">기록</button>
+    <div class="nb-log">${netLog.map(l=>`<div>${l}</div>`).join('')}</div>`;
+  bar.querySelector('#nb-retry').onclick=()=>{ Audio_.tick(); Net.retryNow(); };
+  bar.querySelector('#nb-logbtn').onclick=()=>{ netOpen=!netOpen; bar.classList.toggle('open', netOpen); };
+}
+Net.onStatus(setNetStatusUI);
 
 /* ---------- 시작 ---------- */
 (function initHash(){
